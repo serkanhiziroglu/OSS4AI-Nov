@@ -64,18 +64,61 @@ export const extractTextFromPDF = async (file) => {
   }
 };
 
-export const generateCoverLetter = async (resume, jobDescription) => {
+export const generateCoverLetter = async (resume, jobDescription, stylePreferences, wordLimit = null) => {
   try {
     console.log('Starting cover letter generation');
-    console.log('Resume length:', resume.length, 'characters');
-    console.log('Job description length:', jobDescription.length, 'characters');
-    
-    const startTime = performance.now();
+    console.log('Style preferences:', stylePreferences);
+    console.log('Word limit:', wordLimit);
     
     const model = genAI.getGenerativeModel({ model: "gemini-pro" });
     
+    const getToneGuidance = (preferences) => {
+      const { friendliness, professionalism } = preferences;
+      if (friendliness > 75) {
+        return `
+          Use a warm, conversational tone that shows enthusiasm and personality:
+          - Include personal anecdotes where relevant
+          - Use more expressive language ("excited", "passionate", "love to")
+          - Add personality traits and soft skills
+          - Write longer, more detailed paragraphs
+          - Include phrases that show eagerness ("I would be thrilled", "I'm excited about")
+          - End with a warm, engaging closing
+        `;
+      } else if (professionalism > 75) {
+        return `
+          Use a formal, highly professional tone:
+          - Focus strictly on qualifications and achievements
+          - Use precise, business-focused language
+          - Keep paragraphs concise and focused
+          - Emphasize metrics and concrete results
+          - Maintain formal language throughout
+          - Use traditional business letter formatting
+          - End with a formal, traditional closing
+        `;
+      } else {
+        return `
+          Balance professional content with a personable tone:
+          - Mix achievement-focused content with personal enthusiasm
+          - Use professional language with occasional warm phrases
+          - Include both technical skills and some personality traits
+          - Maintain moderate paragraph length
+          - End with a professional but warm closing
+        `;
+      }
+    };
+
+    const wordLimitInstruction = wordLimit 
+      ? `Strictly limit the cover letter to ${wordLimit} words, excluding the header and signature.`
+      : 'Write a comprehensive cover letter of appropriate length.';
+    
     const prompt = `
-      Create a professional cover letter based on my resume and the job description.
+      Create a cover letter based on my resume and the job description.
+      
+      Style Instructions:
+      ${getToneGuidance(stylePreferences)}
+      
+      Length Requirement:
+      ${wordLimitInstruction}
       
       My Resume:
       ${resume}
@@ -83,25 +126,17 @@ export const generateCoverLetter = async (resume, jobDescription) => {
       Job Description:
       ${jobDescription}
       
-      Please write a compelling cover letter that:
-      1. Matches my experience with job requirements
-      2. Highlights relevant skills and achievements
-      3. Shows enthusiasm for the role
-      4. Uses a professional tone
-      5. Is properly formatted with today's date
-      
-      Format the letter professionally with proper spacing and paragraphs.
-      Include a proper header with today's date and addressing format.
+      Make sure to:
+      1. Follow the specified tone style
+      2. ${wordLimit ? `Keep the content within ${wordLimit} words` : 'Keep the length appropriate for a cover letter'}
+      3. Match the experience with job requirements
+      4. Include a proper header and signature
     `;
 
     console.log('Sending request to Gemini API...');
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const coverLetter = response.text();
-    
-    const endTime = performance.now();
-    console.log(`Cover letter generated successfully in ${(endTime - startTime).toFixed(2)}ms`);
-    console.log('Generated cover letter length:', coverLetter.length, 'characters');
     
     return coverLetter;
   } catch (err) {
